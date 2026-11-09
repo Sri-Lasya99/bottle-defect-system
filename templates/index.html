@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Limca Bottle Defect Detection & Conveyor Sorting System</title>
+  <link rel="stylesheet" href="/static/style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+</head>
+<body>
+  <div class="app-layout">
+    <!-- Header -->
+    <header class="app-header">
+      <div class="brand">
+        <div class="brand-logo">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M9 3h6v3H9zM10 6v3a4 4 0 0 1-2 3.46V20a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1v-7.54A4 4 0 0 1 14 9V6"/>
+            <path d="M10 14h4"/>
+          </svg>
+        </div>
+        <div class="brand-text">
+          <h1>Limca Bottle Defect Detection</h1>
+          <p class="subtitle">Automated Computer Vision & Conveyor Sorting System</p>
+        </div>
+      </div>
+
+      <div class="header-badges">
+        <div class="status-pill" id="cameraStatusPill">
+          <span class="pill-dot"></span>
+          <span class="pill-text">Camera Standby</span>
+        </div>
+        <div class="status-pill ready">
+          <span class="pill-dot"></span>
+          <span class="pill-text">Model Ready: MobileNetV2</span>
+        </div>
+        <div class="status-pill" id="hardwareStatusPill">
+          <span class="pill-dot"></span>
+          <span class="pill-text">ESP32: Standby</span>
+        </div>
+      </div>
+    </header>
+
+    <!-- Main Grid -->
+    <main class="dashboard-grid">
+      <!-- Left Column: Video Feed & Controls -->
+      <section class="panel video-panel">
+        <div class="panel-header">
+          <div class="panel-title">
+            <span class="icon">📹</span> Live Inspection Camera Feed
+          </div>
+          <div class="feed-indicators">
+            <span class="fps-badge" id="fpsDisplay">0 FPS</span>
+            <span class="stream-badge live" id="liveBadge" style="display: none;">LIVE</span>
+          </div>
+        </div>
+
+        <div class="video-container" id="videoContainer">
+          <img id="webcamStream" src="/video_feed" alt="Webcam Stream" class="stream-img">
+          
+          <!-- Guide reticle overlay -->
+          <div class="guide-overlay" id="guideOverlay">
+            <div class="target-box">
+              <span class="corner tl"></span>
+              <span class="corner tr"></span>
+              <span class="corner bl"></span>
+              <span class="corner br"></span>
+              <div class="guide-label">PLACE BOTTLE HERE</div>
+            </div>
+          </div>
+
+          <!-- Video status banner floating -->
+          <div class="stream-status-banner" id="streamBanner">
+            <span class="banner-icon" id="bannerIcon">ℹ️</span>
+            <span class="banner-text" id="bannerText">Camera ready - click Start Camera</span>
+          </div>
+        </div>
+
+        <!-- Camera Control Action Bar -->
+        <div class="action-bar">
+          <div class="btn-group">
+            <button id="btnStartCam" class="btn btn-success">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polygon points="5 3 19 12 5 21 5 3"></polygon>
+              </svg>
+              Start Camera
+            </button>
+            <button id="btnStopCam" class="btn btn-danger" disabled>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="6" y="6" width="12" height="12"></rect>
+              </svg>
+              Stop Camera
+            </button>
+          </div>
+
+          <button id="btnCapture" class="btn btn-primary btn-pulse">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path>
+              <circle cx="12" cy="13" r="4"></circle>
+            </svg>
+            Capture and Analyze
+          </button>
+        </div>
+
+        <!-- ESP32 Hardware Integration Bar -->
+        <div class="hardware-box">
+          <div class="hardware-header">
+            <div class="hw-info">
+              <span class="hw-icon">⚡</span>
+              <div>
+                <strong>ESP32 Hardware Actuator</strong>
+                <span class="hw-sub" id="hwSubText">USB Serial Conveyor & Diverter Control</span>
+              </div>
+            </div>
+            <label class="toggle-switch">
+              <input type="checkbox" id="hwToggle">
+              <span class="slider"></span>
+            </label>
+          </div>
+          <div class="hw-controls" id="hwControls">
+            <span class="hw-mode-tag" id="hwModeTag">MODE: SIMULATED / STANDBY</span>
+            <div class="hw-quick-btns">
+              <button class="btn btn-xs btn-outline" id="btnHwTestDefect">Test Diverter (Defect)</button>
+              <button class="btn btn-xs btn-outline" id="btnHwTestPass">Test Conveyor (Pass)</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Right Column: Real-time Prediction & Statistics -->
+      <section class="panel analysis-panel">
+        <!-- Live Prediction Card -->
+        <div class="prediction-card" id="predictionCard">
+          <div class="prediction-header">
+            <span class="label">CURRENT REAL-TIME PREDICTION</span>
+            <span class="confidence-badge" id="confBadge">-- %</span>
+          </div>
+
+          <div class="status-display-box" id="statusBox">
+            <div class="status-icon" id="statusIcon">
+              <!-- Default Icon: Neutral Search -->
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="11" cy="11" r="8"></circle>
+                <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+              </svg>
+            </div>
+            <div class="status-content">
+              <h2 class="status-title" id="statusTitle">NO BOTTLE DETECTED</h2>
+              <p class="status-desc" id="statusDesc">Position a Limca bottle in front of the laptop webcam</p>
+            </div>
+          </div>
+
+          <!-- Confidence Bar Meter -->
+          <div class="confidence-meter-container">
+            <div class="meter-labels">
+              <span>Confidence Level</span>
+              <strong id="confValueText">0.0%</strong>
+            </div>
+            <div class="meter-track">
+              <div class="meter-fill" id="meterFill" style="width: 0%;"></div>
+            </div>
+            <div class="probabilities-row">
+              <div class="prob-chip">
+                <span class="chip-label">Non-Defective</span>
+                <span class="chip-val" id="probNonDef">0.0%</span>
+              </div>
+              <div class="prob-chip">
+                <span class="chip-label">Defective</span>
+                <span class="chip-val" id="probDef">0.0%</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Inspection Statistics Row -->
+        <div class="stats-grid">
+          <div class="stat-card">
+            <div class="stat-icon gray">📊</div>
+            <div class="stat-body">
+              <span class="stat-val" id="statTotal">0</span>
+              <span class="stat-lbl">Total Analyzed</span>
+            </div>
+          </div>
+
+          <div class="stat-card">
+            <div class="stat-icon green">✓</div>
+            <div class="stat-body">
+              <span class="stat-val text-green" id="statNonDef">0</span>
+              <span class="stat-lbl">Non-Defective</span>
+            </div>
+          </div>
+
+          <div class="stat-card">
+            <div class="stat-icon red">⚠</div>
+            <div class="stat-body">
+              <span class="stat-val text-red" id="statDef">0</span>
+              <span class="stat-lbl">Defective</span>
+            </div>
+          </div>
+
+          <div class="stat-card">
+            <div class="stat-icon blue">⚡</div>
+            <div class="stat-body">
+              <span class="stat-val text-blue" id="statDefectRate">0.0%</span>
+              <span class="stat-lbl">Defect Rate</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Model Metrics Summary -->
+        <div class="model-info-card">
+          <div class="info-title">
+            <span>🧠 Model & Training Architecture</span>
+            <button class="btn btn-xs btn-outline" id="btnRefreshMetrics">Refresh</button>
+          </div>
+          <div class="metrics-grid">
+            <div class="metric-item">
+              <span class="m-label">Architecture</span>
+              <span class="m-val" id="metricArch">MobileNetV2</span>
+            </div>
+            <div class="metric-item">
+              <span class="m-label">Test Accuracy</span>
+              <span class="m-val text-green" id="metricAcc">--</span>
+            </div>
+            <div class="metric-item">
+              <span class="m-label">Test Loss</span>
+              <span class="m-val" id="metricLoss">--</span>
+            </div>
+            <div class="metric-item">
+              <span class="m-label">Resolution</span>
+              <span class="m-val">224 × 224 px</span>
+            </div>
+          </div>
+          <div class="dataset-notice">
+            <strong>Dataset Notice:</strong> Initial model trained on 40 Limca bottle crops. Real webcam usage uses temporal frame smoothing and bottle presence heuristics.
+          </div>
+        </div>
+      </section>
+
+      <!-- Full Width: Detection History Section -->
+      <section class="panel history-panel">
+        <div class="panel-header">
+          <div class="panel-title">
+            <span class="icon">📜</span> Inspection & Detection History
+          </div>
+          <div class="history-actions">
+            <button id="btnClearHistory" class="btn btn-xs btn-outline">Clear History</button>
+          </div>
+        </div>
+
+        <div class="history-table-container">
+          <table class="history-table">
+            <thead>
+              <tr>
+                <th>Snapshot</th>
+                <th>Capture ID</th>
+                <th>Timestamp</th>
+                <th>Inspection Verdict</th>
+                <th>Confidence</th>
+                <th>Hardware Action</th>
+              </tr>
+            </thead>
+            <tbody id="historyTableBody">
+              <tr class="empty-row">
+                <td colspan="6">No bottles analyzed yet. Click <strong>"Capture and Analyze"</strong> to log inspection snapshots.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+
+    <!-- Snapshot Modal -->
+    <div class="modal" id="imageModal">
+      <div class="modal-backdrop" id="modalBackdrop"></div>
+      <div class="modal-content">
+        <div class="modal-header">
+          <h3 id="modalTitle">Inspection Snapshot</h3>
+          <button class="modal-close" id="modalClose">&times;</button>
+        </div>
+        <div class="modal-body">
+          <img id="modalImg" src="" alt="Snapshot Full View">
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="/static/main.js"></script>
+</body>
+</html>

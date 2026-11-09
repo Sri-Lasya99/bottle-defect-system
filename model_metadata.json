@@ -1,0 +1,59 @@
+{
+  "model_file": "bottle_defect_model.keras",
+  "created_at": "2026-11-09T14:41:39.705658",
+  "input_shape": [
+    224,
+    224,
+    3
+  ],
+  "class_names": [
+    "Defective",
+    "Non_Defective"
+  ],
+  "class_indices": {
+    "Defective": 0,
+    "Non_Defective": 1
+  },
+  "normalization": "MobileNetV2 preprocess_input (scaled to [-1, 1])",
+  "dataset_summary": {
+    "total_images": 40,
+    "defective_count": 20,
+    "non_defective_count": 20,
+    "train_samples": 28,
+    "val_samples": 6,
+    "test_samples": 6
+  },
+  "performance_metrics": {
+    "train_accuracy": 0.8928571343421936,
+    "train_loss": 0.1505654752254486,
+    "val_accuracy": 1.0,
+    "val_loss": 0.08916401863098145,
+    "test_accuracy": 1.0,
+    "test_loss": 0.0888131633400917,
+    "confusion_matrix": [
+      [
+        3,
+        0
+      ],
+      [
+        0,
+        3
+      ]
+    ],
+    "classification_report": {
+      "Defective": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1-score": 1.0,
+        "support": 3
+      },
+      "Non_Defective": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1-score": 1.0,
+        "support": 3
+      }
+    }
+  },
+  "notes": "Trained on 40 Limca bottle crops. Real webcam usage may need repositioning or additional webcam training data."
+}
