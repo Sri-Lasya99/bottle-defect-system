@@ -21,8 +21,8 @@
           </svg>
         </div>
         <div class="brand-text">
-          <h1>Limca Bottle Defect Detection</h1>
-          <p class="subtitle">Automated Computer Vision & Conveyor Sorting System</p>
+          <h1>Limca Bottle Defect Detection & Conveyor Sorter</h1>
+          <p class="subtitle">AI MobileNetV2 Vision • 115200 Baud ESP32 • Continuous Conveyor • FIFO Servo Diverter</p>
         </div>
       </div>
 
@@ -33,7 +33,11 @@
         </div>
         <div class="status-pill ready">
           <span class="pill-dot"></span>
-          <span class="pill-text">Model Ready: MobileNetV2</span>
+          <span class="pill-text">Model: MobileNetV2</span>
+        </div>
+        <div class="status-pill active" id="conveyorStatusPill">
+          <span class="pill-dot"></span>
+          <span class="pill-text">Conveyor: CONTINUOUS</span>
         </div>
         <div class="status-pill" id="hardwareStatusPill">
           <span class="pill-dot"></span>
@@ -48,7 +52,7 @@
       <section class="panel video-panel">
         <div class="panel-header">
           <div class="panel-title">
-            <span class="icon">📹</span> Live Inspection Camera Feed
+            <span class="icon">📹</span> Live Conveyor Camera Feed
           </div>
           <div class="feed-indicators">
             <span class="fps-badge" id="fpsDisplay">0 FPS</span>
@@ -58,7 +62,7 @@
 
         <div class="video-container" id="videoContainer">
           <img id="webcamStream" src="/video_feed" alt="Webcam Stream" class="stream-img">
-          
+
           <!-- Guide reticle overlay -->
           <div class="guide-overlay" id="guideOverlay">
             <div class="target-box">
@@ -66,7 +70,7 @@
               <span class="corner tr"></span>
               <span class="corner bl"></span>
               <span class="corner br"></span>
-              <div class="guide-label">PLACE BOTTLE HERE</div>
+              <div class="guide-label">INSPECTION ZONE (12 CM BEFORE IR)</div>
             </div>
           </div>
 
@@ -94,12 +98,12 @@
             </button>
           </div>
 
-          <button id="btnCapture" class="btn btn-primary btn-pulse">
+          <button id="btnCapture" class="btn btn-primary btn-pulse" title="Test manual snapshot without disrupting conveyor FIFO queue">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path>
               <circle cx="12" cy="13" r="4"></circle>
             </svg>
-            Capture and Analyze
+            Capture Test Snapshot
           </button>
         </div>
 
@@ -109,21 +113,65 @@
             <div class="hw-info">
               <span class="hw-icon">⚡</span>
               <div>
-                <strong>ESP32 Hardware Actuator</strong>
-                <span class="hw-sub" id="hwSubText">USB Serial Conveyor & Diverter Control</span>
+                <strong>ESP32 Hardware Controller (COM5 @ 115200)</strong>
+                <span class="hw-sub" id="hwSubText">Servo GPIO18 • IR Sensor GPIO32 (Active LOW)</span>
               </div>
             </div>
-            <label class="toggle-switch">
+            <label class="toggle-switch" title="Toggle physical hardware actuation">
               <input type="checkbox" id="hwToggle">
               <span class="slider"></span>
             </label>
           </div>
-          <div class="hw-controls" id="hwControls">
-            <span class="hw-mode-tag" id="hwModeTag">MODE: SIMULATED / STANDBY</span>
-            <div class="hw-quick-btns">
-              <button class="btn btn-xs btn-outline" id="btnHwTestDefect">Test Diverter (Defect)</button>
-              <button class="btn btn-xs btn-outline" id="btnHwTestPass">Test Conveyor (Pass)</button>
+
+          <div class="hw-connection-row" style="display: flex; gap: 8px; align-items: center; margin-top: 10px; flex-wrap: wrap;">
+            <select id="hwPortSelect" style="background: #1f2937; color: #fff; border: 1px solid var(--border-color); border-radius: var(--radius-sm); padding: 5px 10px; font-size: 0.82rem; font-family: monospace;">
+              <option value="">Auto-Detect Port (Preferred: COM5)</option>
+            </select>
+            <button class="btn btn-xs btn-outline" id="btnHwConnect">Connect</button>
+            <button class="btn btn-xs btn-outline" id="btnHwDisconnect" style="display:none;">Disconnect</button>
+            <button class="btn btn-xs btn-outline" id="btnHwRefreshPorts" title="Refresh COM Ports">🔄</button>
+          </div>
+
+          <!-- Live Hardware Sensors Readout -->
+          <div class="hw-telemetry-row" style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 10px; background: rgba(0,0,0,0.25); padding: 8px; border-radius: var(--radius-sm); font-size: 0.8rem;">
+            <div>
+              <span style="color: var(--text-muted); display: block;">Conveyor:</span>
+              <strong style="color: var(--accent-green);" id="telemetryConveyor">CONTINUOUS</strong>
             </div>
+            <div>
+              <span style="color: var(--text-muted); display: block;">IR Sensor (GPIO32):</span>
+              <strong id="telemetryIR" style="color: #9ca3af;">CLEAR (HIGH)</strong>
+            </div>
+            <div>
+              <span style="color: var(--text-muted); display: block;">Servo (GPIO18):</span>
+              <strong id="telemetryServo" style="color: #9ca3af;">0° (REST)</strong>
+            </div>
+            <div>
+              <span style="color: var(--text-muted); display: block;">ESP32 FIFO Queue:</span>
+              <strong id="telemetryQueue" style="color: var(--accent-blue);">0 In-Flight</strong>
+            </div>
+          </div>
+
+          <div class="hw-controls" id="hwControls">
+            <span class="hw-mode-tag" id="hwModeTag">MODE: STANDBY (ACTUATION DISABLED)</span>
+            <div class="hw-quick-btns" style="flex-wrap: wrap; gap: 6px;">
+              <button class="btn btn-xs btn-outline" id="btnHwTestDefect" title="Test SG90 diverter 0° -> 180° -> 0° sweep">Test Diverter (180° Sweep)</button>
+              <button class="btn btn-xs btn-outline" id="btnHwClearQueue" title="Clear pending queue verdicts">Clear FIFO Queue</button>
+              <button class="btn btn-xs btn-outline" id="btnHwStatus" title="Poll status from ESP32">Poll Status</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- In-Transit Conveyor FIFO Pipeline Widget -->
+        <div class="pipeline-card" style="margin-top: 14px; background: var(--bg-card); border: 1px solid var(--border-color); border-radius: var(--radius-md); padding: 14px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+            <strong style="font-size: 0.85rem; color: #cbd5e1; display: flex; align-items: center; gap: 6px;">
+              <span>🚀</span> Conveyor In-Transit Pipeline (~12 cm / 6–7s travel)
+            </strong>
+            <span class="badge badge-gray" id="pipelineCountBadge">0 in transit</span>
+          </div>
+          <div id="pipelineContainer" style="display: flex; gap: 8px; overflow-x: auto; padding: 6px 0; min-height: 48px; align-items: center;">
+            <span style="color: var(--text-muted); font-size: 0.8rem; font-style: italic;">No bottles currently in transit between camera and IR sensor.</span>
           </div>
         </div>
       </section>
@@ -133,13 +181,12 @@
         <!-- Live Prediction Card -->
         <div class="prediction-card" id="predictionCard">
           <div class="prediction-header">
-            <span class="label">CURRENT REAL-TIME PREDICTION</span>
+            <span class="label">CURRENT REAL-TIME CAMERA PREDICTION</span>
             <span class="confidence-badge" id="confBadge">-- %</span>
           </div>
 
           <div class="status-display-box" id="statusBox">
             <div class="status-icon" id="statusIcon">
-              <!-- Default Icon: Neutral Search -->
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <circle cx="11" cy="11" r="8"></circle>
                 <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
@@ -147,7 +194,7 @@
             </div>
             <div class="status-content">
               <h2 class="status-title" id="statusTitle">NO BOTTLE DETECTED</h2>
-              <p class="status-desc" id="statusDesc">Position a Limca bottle in front of the laptop webcam</p>
+              <p class="status-desc" id="statusDesc">Position a Limca bottle on conveyor within camera reticle</p>
             </div>
           </div>
 
@@ -173,13 +220,13 @@
           </div>
         </div>
 
-        <!-- Inspection Statistics Row -->
-        <div class="stats-grid">
+        <!-- Inspection Statistics (6 Cards) -->
+        <div class="stats-grid" style="grid-template-columns: repeat(3, 1fr); gap: 10px;">
           <div class="stat-card">
             <div class="stat-icon gray">📊</div>
             <div class="stat-body">
               <span class="stat-val" id="statTotal">0</span>
-              <span class="stat-lbl">Total Analyzed</span>
+              <span class="stat-lbl">Total Inspected</span>
             </div>
           </div>
 
@@ -187,7 +234,7 @@
             <div class="stat-icon green">✓</div>
             <div class="stat-body">
               <span class="stat-val text-green" id="statNonDef">0</span>
-              <span class="stat-lbl">Non-Defective</span>
+              <span class="stat-lbl">Non-Defective (AI)</span>
             </div>
           </div>
 
@@ -195,15 +242,31 @@
             <div class="stat-icon red">⚠</div>
             <div class="stat-body">
               <span class="stat-val text-red" id="statDef">0</span>
-              <span class="stat-lbl">Defective</span>
+              <span class="stat-lbl">Defective (AI)</span>
             </div>
           </div>
 
           <div class="stat-card">
-            <div class="stat-icon blue">⚡</div>
+            <div class="stat-icon" style="background: rgba(245, 158, 11, 0.15); color: #f59e0b;">?</div>
             <div class="stat-body">
-              <span class="stat-val text-blue" id="statDefectRate">0.0%</span>
-              <span class="stat-lbl">Defect Rate</span>
+              <span class="stat-val" style="color: #f59e0b;" id="statUncertain">0</span>
+              <span class="stat-lbl">Uncertain (AI)</span>
+            </div>
+          </div>
+
+          <div class="stat-card">
+            <div class="stat-icon" style="background: rgba(16, 185, 129, 0.15); color: #10b981;">🎯</div>
+            <div class="stat-body">
+              <span class="stat-val text-green" id="statSortedDef">0</span>
+              <span class="stat-lbl">Physically Sorted</span>
+            </div>
+          </div>
+
+          <div class="stat-card">
+            <div class="stat-icon" style="background: rgba(239, 68, 68, 0.15); color: #ef4444;">🚨</div>
+            <div class="stat-body">
+              <span class="stat-val text-red" id="statMissing">0</span>
+              <span class="stat-lbl">Missing Verdicts</span>
             </div>
           </div>
         </div>
@@ -211,12 +274,12 @@
         <!-- Model Metrics Summary -->
         <div class="model-info-card">
           <div class="info-title">
-            <span>🧠 Model & Training Architecture</span>
+            <span>🧠 MobileNetV2 Architecture & Diagnostics</span>
             <button class="btn btn-xs btn-outline" id="btnRefreshMetrics">Refresh</button>
           </div>
           <div class="metrics-grid">
             <div class="metric-item">
-              <span class="m-label">Architecture</span>
+              <span class="m-label">Model Engine</span>
               <span class="m-val" id="metricArch">MobileNetV2</span>
             </div>
             <div class="metric-item">
@@ -224,16 +287,16 @@
               <span class="m-val text-green" id="metricAcc">--</span>
             </div>
             <div class="metric-item">
-              <span class="m-label">Test Loss</span>
-              <span class="m-val" id="metricLoss">--</span>
+              <span class="m-label">AI Latency</span>
+              <span class="m-val" id="metricLatency">-- ms</span>
             </div>
             <div class="metric-item">
-              <span class="m-label">Resolution</span>
-              <span class="m-val">224 × 224 px</span>
+              <span class="m-label">Camera-IR Travel</span>
+              <span class="m-val text-blue" id="metricTravel">~6.5s</span>
             </div>
           </div>
           <div class="dataset-notice">
-            <strong>Dataset Notice:</strong> Initial model trained on 40 Limca bottle crops. Real webcam usage uses temporal frame smoothing and bottle presence heuristics.
+            <strong>Timing Architecture:</strong> Camera is located 12 cm before IR sensor. Travel time is ~6-7 seconds. AI classifies bottle on camera entry and enqueues verdict to ESP32 FIFO queue before bottle reaches IR sensor.
           </div>
         </div>
       </section>
@@ -242,7 +305,7 @@
       <section class="panel history-panel">
         <div class="panel-header">
           <div class="panel-title">
-            <span class="icon">📜</span> Inspection & Detection History
+            <span class="icon">📜</span> Real-Time Inspection & Sorting History
           </div>
           <div class="history-actions">
             <button id="btnClearHistory" class="btn btn-xs btn-outline">Clear History</button>
@@ -254,16 +317,16 @@
             <thead>
               <tr>
                 <th>Snapshot</th>
-                <th>Capture ID</th>
-                <th>Timestamp</th>
-                <th>Inspection Verdict</th>
-                <th>Confidence</th>
-                <th>Hardware Action</th>
+                <th>Bottle ID</th>
+                <th>Camera Time</th>
+                <th>AI Verdict & Conf</th>
+                <th>Pipeline Status</th>
+                <th>Hardware Confirmation</th>
               </tr>
             </thead>
             <tbody id="historyTableBody">
               <tr class="empty-row">
-                <td colspan="6">No bottles analyzed yet. Click <strong>"Capture and Analyze"</strong> to log inspection snapshots.</td>
+                <td colspan="6">No bottles analyzed yet. Start the camera and run bottles along the conveyor to see real-time sorting.</td>
               </tr>
             </tbody>
           </table>
